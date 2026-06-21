@@ -12,6 +12,9 @@ struct CreateTunnelSheet: View {
     @State private var startNow = true
     @State private var isCreating = false
     @State private var errorText: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case name, local, hostname }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,16 +38,23 @@ struct CreateTunnelSheet: View {
 
             Form {
                 TextField("Name (optional)", text: $name, prompt: Text(defaultName))
+                    .focused($focusedField, equals: .name)
 
                 TextField("Local target", text: $localInput, prompt: Text("3000 or http://localhost:3000"))
                     .help("A port, host:port, or full URL of your local service.")
-                if let resolved = TunnelInputParsing.normalizeLocalURL(localInput) {
-                    Text("→ \(resolved)").font(.caption).foregroundStyle(.secondary)
-                }
+                    .focused($focusedField, equals: .local)
+                // Always render this preview row. If it were conditional, inserting/
+                // removing a sibling next to the focused TextField (when `localInput`
+                // toggles empty↔non-empty) tears down the field's NSTextField on macOS
+                // and drops first-responder — which made the field reject typed input.
+                Text(TunnelInputParsing.normalizeLocalURL(localInput).map { "→ \($0)" } ?? " ")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 if mode == .named {
                     TextField("Public hostname", text: $hostnameInput, prompt: Text("app.dev.example.com"))
                         .help("A hostname on a domain you've added to Cloudflare.")
+                        .focused($focusedField, equals: .hostname)
                     if !app.hasAPIToken {
                         Label("Add a Cloudflare API token in Settings → Account first.",
                               systemImage: "key.fill")
@@ -105,6 +115,7 @@ struct CreateTunnelSheet: View {
         if hostnameInput.isEmpty, !app.settings.defaultDomainSuffix.isEmpty {
             hostnameInput = "app." + app.settings.defaultDomainSuffix
         }
+        focusedField = .local
     }
 
     private func create() {
