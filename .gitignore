@@ -42,3 +42,8 @@ Secrets.xcconfig
 tunnels.json
 settings.json
 account.json
+
+# ── VS Code workspace config ───────────────────────────────────────
+# Re-include the editor settings; the broad `settings.json` rule above is
+# only meant for app-exported account data, not the .vscode workspace config.
+!.vscode/settings.json

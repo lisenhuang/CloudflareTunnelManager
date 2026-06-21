@@ -1,0 +1,22 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Generate a detailed commit message that follows the Conventional Commits specification."
+    },
+    {
+      "text": "The subject line must be: <type>(<optional-scope>): <short imperative summary>. Use one of these types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. Keep the subject in the imperative mood (e.g. 'add', not 'added' or 'adds') and under 72 characters. Do not end the subject with a period."
+    },
+    {
+      "text": "Always include a body separated from the subject by one blank line. In the body, explain WHAT changed and WHY it changed (the motivation, problem being solved, or context) rather than just restating HOW. Wrap body lines at about 72 characters."
+    },
+    {
+      "text": "Use bullet points (lines starting with '- ') in the body to describe each meaningful change when more than one file or concern is affected. Group related changes together."
+    },
+    {
+      "text": "If the change introduces a breaking change, add a 'BREAKING CHANGE:' footer describing the impact and the migration path. Reference any related issues in a footer (e.g. 'Refs: #123' or 'Closes: #123') when they can be inferred."
+    },
+    {
+      "text": "Be specific and accurate: base the message strictly on the actual staged diff. Mention affected components, functions, or files by name where it adds clarity. Do not invent changes that are not present in the diff."
+    }
+  ]
+}
