@@ -1,0 +1,44 @@
+# ── Build artifacts ────────────────────────────────────────────────
+.DS_Store
+.build/
+build/
+*.app
+DerivedData/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.o
+*.swiftmodule
+
+# ── Secrets & credentials (DO NOT COMMIT) ──────────────────────────
+# Cloudflare API tokens are stored in the macOS Keychain and tunnel data in
+# ~/Library/Application Support — neither lives in this repo. These rules are a
+# defensive backstop so credentials can never be committed by accident.
+
+# cloudflared origin certs (cert.pem), TLS keys, signing material
+*.pem
+*.p12
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# cloudflared local state, if ever copied into the project
+cert.pem
+*.json.credentials
+.cloudflared/
+**/cloudflared-credentials/
+
+# Environment / local secret files
+.env
+.env.*
+secrets.json
+secrets.plist
+*.secret
+Local.xcconfig
+Secrets.xcconfig
+
+# Exported tunnel/account data
+tunnels.json
+settings.json
+account.json
