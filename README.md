@@ -1,190 +1,156 @@
-# Cloudflare Tunnel Manager
+# ☁️ Cloudflare Tunnel Manager
 
-A native macOS (SwiftUI) control panel for [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — an **ngrok-like UI** for exposing local services to the internet, backed by Cloudflare's infrastructure instead of a paid tunneling SaaS.
+A native **macOS** app to expose `localhost` to the internet — an **ngrok-style UI** for [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/), backed by Cloudflare instead of a paid SaaS.
 
-Create, start, stop, and monitor tunnels from a window or the menu bar. It manages the `cloudflared` binary as a supervised subprocess, captures its logs live, and (for custom domains) drives the Cloudflare REST API to create the tunnel and DNS route for you.
+![Platform](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+![Universal](https://img.shields.io/badge/binary-Apple%20Silicon%20%2B%20Intel-orange)
+![Release](https://img.shields.io/github/v/release/lisenhuang/CloudflareTunnelManager?include_prereleases&label=latest)
+![Downloads](https://img.shields.io/github/downloads/lisenhuang/CloudflareTunnelManager/total)
 
-### ⬇︎ Download
+### ⬇️ [**Download the latest `.dmg`**](https://github.com/lisenhuang/CloudflareTunnelManager/releases/latest/download/CloudflareTunnelManager.dmg)
 
-**[Download the latest macOS build](https://github.com/lisenhuang/CloudflareTunnelManager/releases/latest/download/CloudflareTunnelManager.dmg)** — this link always points to the newest release. Open the `.dmg` and drag the app into **Applications**.
+Always the newest build → open it → drag the app into **Applications**.
+
+![App window](docs/app.jpg)
 
 ---
 
-## The one thing to understand first: Quick vs Named tunnels
+## ✨ Features
 
-Cloudflare Tunnel has **two modes**, and they serve different needs. This app supports both and the distinction shapes the whole UX:
+| | |
+|---|---|
+| 📋 **Dashboard** | every tunnel with live status, local target & public URL |
+| 🪄 **One-click create** | Quick or Named — tunnel + ingress + DNS done for you |
+| ⏯️ **Process control** | start / stop / restart, auto-restart with backoff |
+| 📜 **Live logs** | per-tunnel, color-coded, copyable |
+| 🧭 **Menu-bar** | start/stop & copy-URL without the main window |
+| 🔐 **Keychain** | API & connector tokens never touch disk |
 
-| | **Quick Tunnel** ⚡️ | **Named Tunnel** 🌐 |
+---
+
+## ⚡️ Quick vs 🌐 Named tunnels
+
+```
+⚡️ Quick   localhost:3000 ──cloudflared──▶  random.trycloudflare.com   no account · dies on stop
+🌐 Named   localhost:3000 ──cloudflared──▶  app.your-domain.com        your domain · permanent
+```
+
+| | ⚡️ Quick | 🌐 Named |
 |---|---|---|
-| URL | random `https://<name>.trycloudflare.com` | your own `app.dev.example.com` |
-| Cloudflare account | **not required** | required |
-| Domain on Cloudflare | not required | **required** (must be a zone you control) |
+| URL | random `*.trycloudflare.com` | your `app.example.com` |
+| Cloudflare account | ❌ not needed | ✅ required |
 | Auth | none | scoped **API token** |
-| DNS setup | none | automatic (CNAME via API) |
-| Lifetime | ephemeral (dies with the process) | persistent / reusable |
-| Best for | quick demos, webhooks, sharing `localhost` | stable dev/staging URLs |
+| Lifetime | ephemeral (new URL each restart) | persistent / reusable |
+| Best for | quick demos, webhooks | stable dev/staging URLs |
 
-**The true "ngrok replacement" experience is the Quick Tunnel** — zero config, no login, instant URL. Named tunnels are for when you want a stable custom hostname.
-
-> A note on "OAuth login": Cloudflare does **not** offer an end-user OAuth2 flow for REST API access. The app authenticates named-tunnel operations with a **scoped API token** you paste once (stored in the macOS Keychain). The browser-based `cloudflared login` flow is a *different* thing (it issues a zone cert); this app deliberately avoids it by creating remotely-managed tunnels and running them with `--token`.
+> 💡 **Quick** is the true ngrok replacement: zero config, instant URL. The URL **changes on every restart** — switch to a **Named** tunnel when you need a stable address.
 
 ---
 
-## Features
+## 🚀 Install
 
-- **Dashboard** — list of all tunnels with live status (running / stopped / error), local target, and public URL.
-- **One-click create** — Quick (instant) or Named (custom hostname); the app creates the tunnel, pushes the ingress config, and adds the DNS route automatically.
-- **Process control** — start / stop / restart, with optional **auto-restart + exponential backoff** on crash.
-- **Live logs** — per-tunnel, auto-scrolling, color-coded, copyable.
-- **Menu-bar control** — quick start/stop and copy-URL without opening the main window.
-- **cloudflared management** — detects the binary, offers a Homebrew install if missing, and lets you override the path.
-- **Secure by design** — API tokens and per-tunnel connector tokens live in the **Keychain**; only non-secret config is written to disk.
+1. ⬇️ **[Download the `.dmg`](https://github.com/lisenhuang/CloudflareTunnelManager/releases/latest/download/CloudflareTunnelManager.dmg)** → open → drag to **Applications**.
+2. Needs [`cloudflared`](https://github.com/cloudflare/cloudflared) — the app offers a one-click `brew install` if it's missing.
 
----
+> ⚠️ **First launch on an unsigned build** — macOS Gatekeeper blocks it once. Allow it via **System Settings → Privacy & Security → “Open Anyway”** (or right-click the app → **Open**, or run `xattr -dr com.apple.quarantine "/Applications/CloudflareTunnelManager.app"`).
 
-## Requirements
-
-- macOS 14 (Sonoma) or later
-- Xcode 15+ / Swift 6 toolchain (to build)
-- [`cloudflared`](https://github.com/cloudflare/cloudflared) — the app can install it via Homebrew (`brew install cloudflared`) or you can install it yourself
-- A Cloudflare account + a domain on Cloudflare **only if** you want Named tunnels
+![Open Anyway](docs/gatekeeper.jpg)
 
 ---
 
-## Build & run
-
-### Quick dev run (SwiftPM)
+## 🛠️ Build from source
 
 ```bash
-swift run
+swift run                 # dev run
+./scripts/make-app.sh     # → CloudflareTunnelManager.app
+open Package.swift        # open in Xcode
 ```
 
-### Build a proper `.app` bundle
-
-```bash
-./scripts/make-app.sh        # produces CloudflareTunnelManager.app
-open CloudflareTunnelManager.app
-```
-
-### Open in Xcode
-
-```bash
-open Package.swift
-```
+Requires **macOS 14+** and the **Swift 6** toolchain (Xcode 16).
 
 ---
 
-## Continuous delivery (GitHub Actions)
+## 📦 Releases — automated (GitHub Actions)
 
-Two workflows live in [`.github/workflows/`](.github/workflows):
-
-| Workflow | Trigger | What it does |
+| Workflow | Trigger | Does |
 |---|---|---|
-| **CI** (`ci.yml`) | push / PR to `main` | builds release + verifies the `.app` assembles |
-| **Release** (`release.yml`) | push a `v*` tag (or run manually) | builds a **universal** (Intel + Apple Silicon) app, packages a **drag-to-Applications `.dmg`** (+ a `.zip`), and publishes them to a **GitHub Release** |
-
-> This repo has **no GitHub remote yet**. First push it to GitHub, then the workflows become active:
-> ```bash
-> gh repo create CloudflareTunnelManager --public --source=. --push   # or add a remote manually
-> ```
-
-### Cut a release
+| **CI** | push / PR → `main` | build + verify the `.app` assembles |
+| **Release** | push tag `v*` | universal build → `.dmg` + `.zip` → GitHub Release |
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0          # → Release workflow builds & publishes
+git tag v0.1.1 && git push origin v0.1.1   # builds & publishes a release
 ```
 
-Or run it from the **Actions → Release → Run workflow** button (it asks for a version and creates the tag). The result is a GitHub Release whose `.dmg` users **open and drag onto Applications**.
-
-Each release publishes both versioned assets (`CloudflareTunnelManager-<ver>.dmg/.zip`) and **version-less copies** (`CloudflareTunnelManager.dmg/.zip`), so this URL is permanent and always serves the latest:
+🔗 **Permanent latest-download link** (each release also ships version-less copies):
 
 ```
 https://github.com/lisenhuang/CloudflareTunnelManager/releases/latest/download/CloudflareTunnelManager.dmg
 ```
 
-### Signed & notarized builds (recommended for public download)
+<details>
+<summary>🔏 <b>Signed & notarized builds</b> (optional — for double-click-to-run downloads)</summary>
 
-**With no secrets set, the build still works** — but it's *ad-hoc signed*, so on first launch macOS Gatekeeper blocks it and downloaders must right-click → Open (or `xattr -dr com.apple.quarantine …`). The generated release notes say so automatically.
+Add these repo secrets (**Settings → Secrets and variables → Actions**) — needs an [Apple Developer Program](https://developer.apple.com/programs/) membership. **All-or-nothing**: set every secret or none (the workflow fails fast on a partial set).
 
-To produce **notarized, double-click-to-run** builds, add these repo secrets (**Settings → Secrets and variables → Actions**). They require an [Apple Developer Program](https://developer.apple.com/programs/) membership:
-
-| Secret | What it is |
+| Secret | Value |
 |---|---|
-| `MACOS_CERTIFICATE` | base64 of your **Developer ID Application** `.p12` (`base64 -i cert.p12 \| pbcopy`) |
-| `MACOS_CERTIFICATE_PWD` | password for that `.p12` |
-| `MACOS_CODESIGN_IDENTITY` | e.g. `Developer ID Application: Jane Doe (ABCDE12345)` |
-| `MACOS_NOTARY_APPLE_ID` | your Apple ID email |
+| `MACOS_CERTIFICATE` | base64 of your Developer ID `.p12` |
+| `MACOS_CERTIFICATE_PWD` | its password |
+| `MACOS_CODESIGN_IDENTITY` | `Developer ID Application: Name (TEAMID)` |
+| `MACOS_NOTARY_APPLE_ID` | Apple ID email |
 | `MACOS_NOTARY_TEAM_ID` | 10-char Team ID |
-| `MACOS_NOTARY_PWD` | an [app-specific password](https://support.apple.com/en-us/102654) |
+| `MACOS_NOTARY_PWD` | [app-specific password](https://support.apple.com/en-us/102654) |
 
-> **All-or-nothing:** set every `MACOS_*` secret together, or none. The workflow's _Validate signing_ step fails fast on a partial set rather than shipping a silently-broken build.
+Without them you still get a working **ad-hoc** build (the Gatekeeper step above).
 
-The same scripts run locally: `CODESIGN_IDENTITY="…" ./scripts/make-app.sh` then `./scripts/make-dmg.sh` and `MACOS_NOTARY_* … ./scripts/notarize.sh CloudflareTunnelManager-<ver>.dmg`.
-
----
-
-## Cloudflare API token (for Named tunnels only)
-
-Create a scoped token at **dash.cloudflare.com → My Profile → API Tokens** with:
-
-- **Account · Cloudflare Tunnel · Edit**
-- **Zone · DNS · Edit**
-- **Zone · Zone · Read**
-
-Paste it into **Settings → Account**. It is verified against `/user/tokens/verify` and stored in the Keychain.
+</details>
 
 ---
 
-## Architecture
+## 🔑 API token (Named tunnels only)
 
-Layered, with SwiftUI views on top of an observable `AppState`, which coordinates a set of focused services. Nothing in the UI talks to `Process` or the network directly.
+**dash.cloudflare.com → My Profile → API Tokens**, scoped to:
 
-```
-Views (SwiftUI)
-   │  reads/observes
-   ▼
-AppState  (@MainActor @Observable orchestrator)
-   │
-   ├── CloudflaredProcessService   launch & supervise cloudflared, stream logs
-   ├── CloudflareAPIClient         REST: tunnels, ingress config, DNS routes
-   ├── KeychainStore               API + connector tokens (Security framework)
-   ├── TunnelStore                 JSON persistence (Application Support)
-   ├── InstallationService         detect / brew-install cloudflared
-   ├── BinaryLocator               find cloudflared (GUI apps don't inherit PATH)
-   └── LogStore                    per-tunnel ring buffer
-```
+`Account · Cloudflare Tunnel · Edit`  ・  `Zone · DNS · Edit`  ・  `Zone · Zone · Read`
 
-### What runs which command
-
-- **Quick:** `cloudflared tunnel --url http://localhost:PORT --no-autoupdate` → the app parses the `*.trycloudflare.com` URL out of the output.
-- **Named create (API):** `POST /accounts/{id}/cfd_tunnel` (config_src=cloudflare) → fetch connector token → `PUT …/configurations` (ingress) → `POST /zones/{id}/dns_records` (CNAME → `<tunnel-id>.cfargotunnel.com`, proxied).
-- **Named run:** `cloudflared tunnel run --token <token> --no-autoupdate` — no local cert or credentials file needed.
-
-### Folder structure
-
-```
-Sources/CloudflareTunnelManager/
-├── App/         CloudflareTunnelManagerApp.swift   (scenes: Window, MenuBarExtra, Settings)
-├── Models/      TunnelItem, TunnelMode, TunnelStatus, AppSettings, CloudflareModels
-├── Services/    CloudflaredProcessService, CloudflareAPIClient, KeychainStore,
-│                TunnelStore, InstallationService, BinaryLocator, LogStore
-├── State/       AppState  (orchestrator)
-├── Utilities/   TunnelInputParsing (URL/host validation, log parsing)
-└── Views/       ContentView, TunnelRowView, TunnelDetailView, CreateTunnelSheet,
-                 LogsView, SettingsView, AccountSettingsView, MenuBarView, StatusBadge
-```
+Paste it into **Settings → Account** — verified against `/user/tokens/verify` and stored in the Keychain.
 
 ---
 
-## Security & publishing notes
+## 🏗️ Architecture
 
-- **No secrets in the repo.** API tokens and connector tokens are stored only in the **Keychain**; tunnel/settings JSON (no secrets) lives in `~/Library/Application Support/CloudflareTunnelManager/`. The `.gitignore` additionally blocks `*.pem`, `.env`, `cert.pem`, exported `*.json`, etc. as a backstop.
-- **App Sandbox is intentionally off.** A sandboxed app cannot spawn an arbitrary executable like `cloudflared`, so this ships as a **Developer ID–signed, notarized** app (not Mac App Store). For local dev the bundler applies an ad-hoc signature.
+```
+SwiftUI Views
+     │ observe
+     ▼
+  AppState ──────── @MainActor @Observable orchestrator
+     ├─ CloudflaredProcessService   spawn & supervise cloudflared, stream logs
+     ├─ CloudflareAPIClient         REST: tunnels · ingress · DNS routes
+     ├─ KeychainStore               API + connector tokens (Security framework)
+     ├─ TunnelStore                 JSON persistence (Application Support)
+     ├─ InstallationService         detect / brew-install cloudflared
+     ├─ BinaryLocator               find cloudflared (GUI apps don't inherit PATH)
+     └─ LogStore                    per-tunnel ring buffer
+```
 
-## Known limitations / roadmap
+<details>
+<summary>What runs which command</summary>
 
-- Restoring previously-running tunnels on launch is stubbed (running state isn't persisted in the MVP).
-- No automatic `cloudflared` version-update prompts yet.
-- Named-tunnel deletion is best-effort on the API side.
-- Multiple ingress rules per tunnel (one tunnel → many hostnames) is not yet exposed in the UI.
+- **Quick:** `cloudflared tunnel --url http://localhost:PORT --no-autoupdate` → parses the `*.trycloudflare.com` URL from output.
+- **Named create:** `POST /accounts/{id}/cfd_tunnel` → fetch connector token → `PUT …/configurations` (ingress) → `POST /zones/{id}/dns_records` (CNAME → `<id>.cfargotunnel.com`).
+- **Named run:** `cloudflared tunnel run --token <token> --no-autoupdate` — no local cert/credentials file.
+
+</details>
+
+---
+
+## 🔒 Security
+
+- 🔐 Tokens live **only in the Keychain**; non-secret config in `~/Library/Application Support/CloudflareTunnelManager/`. `.gitignore` blocks `*.pem`, `.env`, `*.p12`, etc.
+- 📦 **App Sandbox is off** (required to spawn `cloudflared`) → distributed as a **Developer ID-notarized** app, not via the Mac App Store.
+
+## 🗺️ Roadmap
+
+- [ ] Persist & restore running tunnels on launch
+- [ ] `cloudflared` version-update prompts
+- [ ] Multiple hostnames per tunnel in the UI
