@@ -78,6 +78,12 @@ struct TunnelDetailView: View {
                 Text("Public URL").gridLabel()
                 publicURLRow
             }
+            if let url = tunnel.displayURL {
+                GridRow {
+                    Text("Scan").gridLabel()
+                    QRCodeView(url: url)
+                }
+            }
             GridRow {
                 Text("Local Target").gridLabel()
                 Text(tunnel.localURL).textSelection(.enabled)
