@@ -4,6 +4,10 @@ A native macOS (SwiftUI) control panel for [Cloudflare Tunnel](https://developer
 
 Create, start, stop, and monitor tunnels from a window or the menu bar. It manages the `cloudflared` binary as a supervised subprocess, captures its logs live, and (for custom domains) drives the Cloudflare REST API to create the tunnel and DNS route for you.
 
+### ⬇︎ Download
+
+**[Download the latest macOS build](https://github.com/lisenhuang/CloudflareTunnelManager/releases/latest/download/CloudflareTunnelManager.dmg)** — this link always points to the newest release. Open the `.dmg` and drag the app into **Applications**.
+
 ---
 
 ## The one thing to understand first: Quick vs Named tunnels
@@ -92,6 +96,12 @@ git push origin v0.1.0          # → Release workflow builds & publishes
 ```
 
 Or run it from the **Actions → Release → Run workflow** button (it asks for a version and creates the tag). The result is a GitHub Release whose `.dmg` users **open and drag onto Applications**.
+
+Each release publishes both versioned assets (`CloudflareTunnelManager-<ver>.dmg/.zip`) and **version-less copies** (`CloudflareTunnelManager.dmg/.zip`), so this URL is permanent and always serves the latest:
+
+```
+https://github.com/lisenhuang/CloudflareTunnelManager/releases/latest/download/CloudflareTunnelManager.dmg
+```
 
 ### Signed & notarized builds (recommended for public download)
 

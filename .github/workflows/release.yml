@@ -136,10 +136,19 @@ jobs:
             TAG="v${VER}"
           fi
 
+          # Version-less copies so there is a PERMANENT "latest" download URL:
+          #   <repo>/releases/latest/download/CloudflareTunnelManager.dmg
+          # (copied from the already-signed/stapled versioned artifacts).
+          cp "CloudflareTunnelManager-${VER}.dmg" "CloudflareTunnelManager.dmg"
+          cp "CloudflareTunnelManager-${VER}.zip" "CloudflareTunnelManager.zip"
+          LATEST="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/latest/download/CloudflareTunnelManager.dmg"
+
           {
             echo "Automated build of Cloudflare Tunnel Manager ${VER}."
             echo ""
             echo "**Install:** open the \`.dmg\` and drag **Cloudflare Tunnel Manager** onto **Applications**."
+            echo ""
+            echo "**Always-latest download:** ${LATEST}"
             if [[ -z "${MACOS_CODESIGN_IDENTITY}" ]]; then
               echo ""
               echo "> ⚠️ This build is **ad-hoc signed (not notarized)**, so macOS Gatekeeper blocks it on first launch. To open it:"
@@ -153,8 +162,12 @@ jobs:
           gh release create "${TAG}" \
             "CloudflareTunnelManager-${VER}.dmg" \
             "CloudflareTunnelManager-${VER}.zip" \
+            "CloudflareTunnelManager.dmg" \
+            "CloudflareTunnelManager.zip" \
             --title "Cloudflare Tunnel Manager ${VER}" \
             --notes-file release-notes.md \
           || gh release upload "${TAG}" \
             "CloudflareTunnelManager-${VER}.dmg" \
-            "CloudflareTunnelManager-${VER}.zip" --clobber
+            "CloudflareTunnelManager-${VER}.zip" \
+            "CloudflareTunnelManager.dmg" \
+            "CloudflareTunnelManager.zip" --clobber
