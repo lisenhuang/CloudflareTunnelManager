@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CloudflareTunnelManager}",
+      "name": "Debug CloudflareTunnelManager",
+      "target": "CloudflareTunnelManager",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug CloudflareTunnelManager"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:CloudflareTunnelManager}",
+      "name": "Release CloudflareTunnelManager",
+      "target": "CloudflareTunnelManager",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release CloudflareTunnelManager"
+    }
+  ]
+}
