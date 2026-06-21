@@ -70,6 +70,50 @@ open Package.swift
 
 ---
 
+## Continuous delivery (GitHub Actions)
+
+Two workflows live in [`.github/workflows/`](.github/workflows):
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| **CI** (`ci.yml`) | push / PR to `main` | builds release + verifies the `.app` assembles |
+| **Release** (`release.yml`) | push a `v*` tag (or run manually) | builds a **universal** (Intel + Apple Silicon) app, packages a **drag-to-Applications `.dmg`** (+ a `.zip`), and publishes them to a **GitHub Release** |
+
+> This repo has **no GitHub remote yet**. First push it to GitHub, then the workflows become active:
+> ```bash
+> gh repo create CloudflareTunnelManager --public --source=. --push   # or add a remote manually
+> ```
+
+### Cut a release
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0          # → Release workflow builds & publishes
+```
+
+Or run it from the **Actions → Release → Run workflow** button (it asks for a version and creates the tag). The result is a GitHub Release whose `.dmg` users **open and drag onto Applications**.
+
+### Signed & notarized builds (recommended for public download)
+
+**With no secrets set, the build still works** — but it's *ad-hoc signed*, so on first launch macOS Gatekeeper blocks it and downloaders must right-click → Open (or `xattr -dr com.apple.quarantine …`). The generated release notes say so automatically.
+
+To produce **notarized, double-click-to-run** builds, add these repo secrets (**Settings → Secrets and variables → Actions**). They require an [Apple Developer Program](https://developer.apple.com/programs/) membership:
+
+| Secret | What it is |
+|---|---|
+| `MACOS_CERTIFICATE` | base64 of your **Developer ID Application** `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PWD` | password for that `.p12` |
+| `MACOS_CODESIGN_IDENTITY` | e.g. `Developer ID Application: Jane Doe (ABCDE12345)` |
+| `MACOS_NOTARY_APPLE_ID` | your Apple ID email |
+| `MACOS_NOTARY_TEAM_ID` | 10-char Team ID |
+| `MACOS_NOTARY_PWD` | an [app-specific password](https://support.apple.com/en-us/102654) |
+
+> **All-or-nothing:** set every `MACOS_*` secret together, or none. The workflow's _Validate signing_ step fails fast on a partial set rather than shipping a silently-broken build.
+
+The same scripts run locally: `CODESIGN_IDENTITY="…" ./scripts/make-app.sh` then `./scripts/make-dmg.sh` and `MACOS_NOTARY_* … ./scripts/notarize.sh CloudflareTunnelManager-<ver>.dmg`.
+
+---
+
 ## Cloudflare API token (for Named tunnels only)
 
 Create a scoped token at **dash.cloudflare.com → My Profile → API Tokens** with:

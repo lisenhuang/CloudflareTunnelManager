@@ -1,0 +1,160 @@
+name: Release
+
+# Publishes a downloadable macOS build to GitHub Releases.
+#   • Push a tag like `v0.1.0`  → builds + publishes that version, OR
+#   • Run manually (Actions tab) → provide a version string.
+#
+# With NO signing secrets configured the build is ad-hoc signed (works, but
+# downloaders must clear quarantine on first launch — see the release notes it
+# generates). Add the MACOS_* secrets below to get a Developer ID-signed,
+# notarized, double-click-to-run build automatically. The secrets are all-or-
+# nothing: set MACOS_CODESIGN_IDENTITY together with the certificate and notary
+# secrets, or none of them (a partial set fails fast in "Validate signing").
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, e.g. 1.2.3 (a tag v<version> is created).'
+        required: true
+
+permissions:
+  contents: write   # required for the GITHUB_TOKEN to create the Release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false   # never kill an in-flight publish mid-upload
+
+jobs:
+  build-release:
+    name: Build, sign & publish
+    runs-on: macos-15
+    env:
+      # Mapped from secrets so steps can be gated on their presence — you cannot
+      # reference `secrets.*` directly inside an `if:`. Leave them ALL unset to
+      # ship an ad-hoc (unsigned, un-notarized) build.
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+      MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+      MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+      MACOS_NOTARY_PWD: ${{ secrets.MACOS_NOTARY_PWD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode (Swift 6)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Validate signing configuration
+        run: |
+          if [[ -n "$MACOS_CODESIGN_IDENTITY" ]]; then
+            : "${MACOS_CERTIFICATE:?Developer ID signing requires the MACOS_CERTIFICATE secret}"
+            : "${MACOS_CERTIFICATE_PWD:?Developer ID signing requires the MACOS_CERTIFICATE_PWD secret}"
+            : "${MACOS_NOTARY_APPLE_ID:?Developer ID signing requires the MACOS_NOTARY_APPLE_ID secret}"
+            : "${MACOS_NOTARY_TEAM_ID:?Developer ID signing requires the MACOS_NOTARY_TEAM_ID secret}"
+            : "${MACOS_NOTARY_PWD:?Developer ID signing requires the MACOS_NOTARY_PWD secret}"
+            echo "Developer ID present — building a signed, notarized release."
+          elif [[ -n "${MACOS_CERTIFICATE}${MACOS_NOTARY_APPLE_ID}${MACOS_NOTARY_TEAM_ID}${MACOS_NOTARY_PWD}" ]]; then
+            echo "::error::Partial signing config. Set MACOS_CODESIGN_IDENTITY together with MACOS_CERTIFICATE(+_PWD) and all MACOS_NOTARY_* secrets — or remove them all to ship an ad-hoc build."
+            exit 1
+          else
+            echo "No signing secrets — building an ad-hoc (unsigned) release."
+          fi
+
+      - name: Resolve version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="${INPUT_VERSION}"
+          fi
+          if [[ ! "${V}" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "::error::Invalid version '${V}'. Allowed: [0-9A-Za-z._-], e.g. 1.2.3."
+            exit 1
+          fi
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+          echo "Building version ${V}"
+
+      - name: Import Developer ID certificate
+        if: env.MACOS_CODESIGN_IDENTITY != ''
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KPWD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KPWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPWD" "$KEYCHAIN"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KPWD" "$KEYCHAIN" >/dev/null
+          # Prepend our keychain to the EXISTING user search list (don't clobber it
+          # and don't hardcode the login keychain filename), then make it default.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -d user -s "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          # Fail fast with a clear message if the identity string doesn't match the cert.
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -qF "$MACOS_CODESIGN_IDENTITY" \
+            || { echo "::error::MACOS_CODESIGN_IDENTITY ('$MACOS_CODESIGN_IDENTITY') not found in the imported certificate."; exit 1; }
+
+      - name: Build & sign app bundle (universal)
+        env:
+          UNIVERSAL: '1'
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+        run: bash ./scripts/make-app.sh release
+
+      - name: Build DMG (drag-to-Applications)
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+        run: bash ./scripts/make-dmg.sh CloudflareTunnelManager.app "${{ steps.ver.outputs.version }}"
+
+      - name: Notarize & staple DMG
+        if: env.MACOS_CODESIGN_IDENTITY != ''
+        run: bash ./scripts/notarize.sh "CloudflareTunnelManager-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: Also package a .zip
+        run: |
+          ditto -c -k --keepParent CloudflareTunnelManager.app \
+            "CloudflareTunnelManager-${{ steps.ver.outputs.version }}.zip"
+
+      - name: Create / update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="v${VER}"
+          fi
+
+          {
+            echo "Automated build of Cloudflare Tunnel Manager ${VER}."
+            echo ""
+            echo "**Install:** open the \`.dmg\` and drag **Cloudflare Tunnel Manager** onto **Applications**."
+            if [[ -z "${MACOS_CODESIGN_IDENTITY}" ]]; then
+              echo ""
+              echo "> ⚠️ This build is **ad-hoc signed (not notarized)**, so macOS Gatekeeper blocks it on first launch. To open it:"
+              echo "> - In Applications, **right-click the app → Open → Open**, or"
+              echo "> - Run once in Terminal: \`xattr -dr com.apple.quarantine /Applications/CloudflareTunnelManager.app\`"
+              echo ">"
+              echo "> _(Add the MACOS_* repo secrets to get notarized, double-click-to-run builds.)_"
+            fi
+          } > release-notes.md
+
+          gh release create "${TAG}" \
+            "CloudflareTunnelManager-${VER}.dmg" \
+            "CloudflareTunnelManager-${VER}.zip" \
+            --title "Cloudflare Tunnel Manager ${VER}" \
+            --notes-file release-notes.md \
+          || gh release upload "${TAG}" \
+            "CloudflareTunnelManager-${VER}.dmg" \
+            "CloudflareTunnelManager-${VER}.zip" --clobber

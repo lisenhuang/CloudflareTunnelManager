@@ -3,6 +3,9 @@
 .build/
 build/
 *.app
+*.dmg
+*.zip
+release-notes.md
 DerivedData/
 .swiftpm/
 xcuserdata/
